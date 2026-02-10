@@ -2,18 +2,11 @@ package org.msc.view
 
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.ScrollableState
 import androidx.compose.foundation.gestures.detectDragGestures
-import androidx.compose.foundation.gestures.scrollBy
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.rememberScrollbarAdapter
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.MaterialTheme
 import androidx.compose.material.darkColors
 import androidx.compose.runtime.*
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
@@ -26,23 +19,19 @@ import androidx.compose.ui.input.pointer.PointerEventType
 import androidx.compose.ui.input.pointer.isCtrlPressed
 import androidx.compose.ui.input.pointer.onPointerEvent
 import androidx.compose.ui.input.pointer.pointerInput
-import androidx.compose.ui.unit.Dp
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.times
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.delay
 import org.msc.model.BMatrix
 import org.msc.model.LMatrix
+import kotlin.math.floor
 
 class ComposeView {
 
     // Visual Constants
     private val greyPanelColor = 160
-    private val baseGridSize = 200
-    private val baseCellSize = 15.dp
+    private val baseCellSizePx = 15f
     private val borderWidth = 1f
     private val updateDelayMs = 300L
+    private val bufferZone = 50
 
     // Zoom Constraints
     private val minZoom = 0.3f
@@ -61,45 +50,37 @@ class ComposeView {
     @OptIn(ExperimentalComposeUiApi::class)
     @Composable
     fun GameOfLife() {
-        BoxWithConstraints(Modifier.fillMaxSize()) {
-            val gridDimensions = calculateGridDimensions(maxWidth, maxHeight)
+        var cellCache by remember { mutableStateOf<Map<Pair<Int, Int>, Boolean>>(emptyMap()) }
+        var offsetX by remember { mutableStateOf(0f) }
+        var offsetY by remember { mutableStateOf(0f) }
+        var zoomLevel by remember { mutableStateOf(1f) }
 
-            var grid by remember {
-                mutableStateOf(createRandomGrid(gridDimensions.width, gridDimensions.height))
+        GameUpdateLoop(
+            onUpdate = {
+                cellCache = updateInfiniteGrid(cellCache, offsetX, offsetY, zoomLevel)
             }
-            var zoomLevel by remember { mutableStateOf(1f) }
-
-            GameUpdateLoop(
-                onUpdate = { grid = updateGrid(grid) }
-            )
-
-            MaterialTheme(colors = darkColorScheme) {
-                GameCanvas(
-                    grid = grid,
-                    gridDimensions = gridDimensions,
-                    zoomLevel = zoomLevel,
-                    onZoomChange = { newZoom -> zoomLevel = newZoom }
-                )
-            }
-        }
-    }
-
-    /**
-     * Calculates grid dimensions based on available space
-     */
-    private fun calculateGridDimensions(maxWidth: Dp, maxHeight: Dp): GridDimensions {
-        val aspectRatio = maxWidth / maxHeight
-        return GridDimensions(
-            width = (baseGridSize * aspectRatio).toInt(),
-            height = baseGridSize
         )
+
+        MaterialTheme(colors = darkColorScheme) {
+            InfiniteGameCanvas(
+                cellCache = cellCache,
+                offsetX = offsetX,
+                offsetY = offsetY,
+                zoomLevel = zoomLevel,
+                onOffsetChange = { dx, dy ->
+                    offsetX += dx
+                    offsetY += dy
+                },
+                onZoomChange = { newZoom -> zoomLevel = newZoom }
+            )
+        }
     }
 
     /**
      * Launches a coroutine that continuously updates the game grid
      */
     @Composable
-    private fun GameUpdateLoop(onUpdate: () -> Unit) {
+    private fun GameUpdateLoop(onUpdate: suspend () -> Unit) {
         LaunchedEffect(Unit) {
             while (true) {
                 delay(updateDelayMs)
@@ -109,73 +90,28 @@ class ComposeView {
     }
 
     /**
-     * Main game canvas with scrolling, zooming, and grid rendering
+     * Infinite game canvas with panning and zooming
      */
     @OptIn(ExperimentalComposeUiApi::class)
     @Composable
-    private fun GameCanvas(
-        grid: List<List<Boolean>>,
-        gridDimensions: GridDimensions,
+    private fun InfiniteGameCanvas(
+        cellCache: Map<Pair<Int, Int>, Boolean>,
+        offsetX: Float,
+        offsetY: Float,
         zoomLevel: Float,
+        onOffsetChange: (Float, Float) -> Unit,
         onZoomChange: (Float) -> Unit
     ) {
-        val currentCellSize = baseCellSize * zoomLevel
-        val canvasWidth = gridDimensions.width * currentCellSize
-        val canvasHeight = gridDimensions.height * currentCellSize
-
-        val verticalScrollState = rememberScrollState()
-        val horizontalScrollState = rememberScrollState()
-        val coroutineScope = rememberCoroutineScope()
-
         Box(
             Modifier
                 .fillMaxSize()
                 .background(MaterialTheme.colors.background)
-        ) {
-            ScrollableGridContainer(
-                verticalScrollState = verticalScrollState,
-                horizontalScrollState = horizontalScrollState,
-                coroutineScope = coroutineScope,
-                zoomLevel = zoomLevel,
-                onZoomChange = onZoomChange,
-                canvasWidth = canvasWidth,
-                canvasHeight = canvasHeight,
-                grid = grid
-            )
-
-            VerticalScrollbar(verticalScrollState)
-            HorizontalScrollbar(horizontalScrollState)
-        }
-    }
-
-    /**
-     * Scrollable container with zoom and drag support
-     */
-    @OptIn(ExperimentalComposeUiApi::class)
-    @Composable
-    private fun ScrollableGridContainer(
-        verticalScrollState: androidx.compose.foundation.ScrollState,
-        horizontalScrollState: androidx.compose.foundation.ScrollState,
-        coroutineScope: CoroutineScope,
-        zoomLevel: Float,
-        onZoomChange: (Float) -> Unit,
-        canvasWidth: Dp,
-        canvasHeight: Dp,
-        grid: List<List<Boolean>>
-    ) {
-        Box(
-            Modifier
-                .fillMaxSize()
-                .verticalScroll(verticalScrollState)
-                .horizontalScroll(horizontalScrollState)
                 .applyZoomHandler(zoomLevel, onZoomChange)
-                .applyDragHandler(horizontalScrollState, verticalScrollState, coroutineScope)
+                .applyPanHandler(onOffsetChange)
         ) {
-            GridCanvas(
-                grid = grid,
-                canvasWidth = canvasWidth,
-                canvasHeight = canvasHeight
-            )
+            Canvas(Modifier.fillMaxSize()) {
+                drawInfiniteGrid(cellCache, offsetX, offsetY, zoomLevel)
+            }
         }
     }
 
@@ -209,71 +145,75 @@ class ComposeView {
     }
 
     /**
-     * Applies drag-to-scroll functionality
+     * Applies pan/drag functionality for infinite grid
      */
-    private fun Modifier.applyDragHandler(
-        horizontalScrollState: ScrollableState,
-        verticalScrollState: ScrollableState,
-        coroutineScope: CoroutineScope
+    private fun Modifier.applyPanHandler(
+        onOffsetChange: (Float, Float) -> Unit
     ): Modifier = this.pointerInput(Unit) {
         detectDragGestures { change, dragAmount ->
             change.consume()
-            coroutineScope.launch {
-                horizontalScrollState.scrollBy(-dragAmount.x)
-                verticalScrollState.scrollBy(-dragAmount.y)
-            }
+            onOffsetChange(dragAmount.x, dragAmount.y)
         }
     }
 
     /**
-     * Canvas that renders the game grid
+     * Draws the infinite grid based on viewport and cell cache
      */
-    @Composable
-    private fun GridCanvas(
-        grid: List<List<Boolean>>,
-        canvasWidth: Dp,
-        canvasHeight: Dp
+    private fun DrawScope.drawInfiniteGrid(
+        cellCache: Map<Pair<Int, Int>, Boolean>,
+        offsetX: Float,
+        offsetY: Float,
+        zoomLevel: Float
     ) {
-        Canvas(
-            Modifier.size(width = canvasWidth, height = canvasHeight)
-        ) {
-            drawGrid(grid)
-        }
-    }
+        val cellSize = baseCellSizePx * zoomLevel
+        val viewportBounds = calculateViewportBounds(size.width, size.height, offsetX, offsetY, cellSize)
 
-    /**
-     * Draws the entire grid on the canvas
-     */
-    private fun DrawScope.drawGrid(grid: List<List<Boolean>>) {
-        if (grid.isEmpty() || grid[0].isEmpty()) return
-
-        val cellWidth = size.width / grid[0].size
-        val cellHeight = size.height / grid.size
-
-        grid.forEachIndexed { y, row ->
-            row.forEachIndexed { x, alive ->
-                drawGridCell(x, y, cellWidth, cellHeight, alive)
+        for (gridY in viewportBounds.minY..viewportBounds.maxY) {
+            for (gridX in viewportBounds.minX..viewportBounds.maxX) {
+                val alive = cellCache[Pair(gridX, gridY)] ?: false
+                drawInfiniteGridCell(gridX, gridY, cellSize, offsetX, offsetY, alive)
             }
         }
     }
 
     /**
-     * Draws a single cell with border and optional fill
+     * Calculates which grid cells are visible in the current viewport
      */
-    private fun DrawScope.drawGridCell(
-        x: Int,
-        y: Int,
-        cellWidth: Float,
-        cellHeight: Float,
+    private fun calculateViewportBounds(
+        canvasWidth: Float,
+        canvasHeight: Float,
+        offsetX: Float,
+        offsetY: Float,
+        cellSize: Float
+    ): ViewportBounds {
+        val minX = floor(-offsetX / cellSize).toInt()
+        val minY = floor(-offsetY / cellSize).toInt()
+        val maxX = floor((canvasWidth - offsetX) / cellSize).toInt()
+        val maxY = floor((canvasHeight - offsetY) / cellSize).toInt()
+
+        return ViewportBounds(minX, minY, maxX, maxY)
+    }
+
+    /**
+     * Draws a single cell in the infinite grid with border and optional fill
+     */
+    private fun DrawScope.drawInfiniteGridCell(
+        gridX: Int,
+        gridY: Int,
+        cellSize: Float,
+        offsetX: Float,
+        offsetY: Float,
         alive: Boolean
     ) {
-        val topLeft = Offset(x * cellWidth, y * cellHeight)
+        val screenX = gridX * cellSize + offsetX
+        val screenY = gridY * cellSize + offsetY
+        val topLeft = Offset(screenX, screenY)
 
         // Draw cell border
         drawRect(
             color = Color.Black,
             topLeft = topLeft,
-            size = Size(cellWidth, cellHeight),
+            size = Size(cellSize, cellSize),
             style = Stroke(width = borderWidth)
         )
 
@@ -281,71 +221,67 @@ class ComposeView {
         if (alive) {
             drawRect(
                 color = Color(greyPanelColor, greyPanelColor, greyPanelColor),
-                topLeft = Offset(
-                    x * cellWidth + borderWidth,
-                    y * cellHeight + borderWidth
-                ),
-                size = Size(
-                    cellWidth - borderWidth * 2,
-                    cellHeight - borderWidth * 2
-                )
+                topLeft = Offset(screenX + borderWidth, screenY + borderWidth),
+                size = Size(cellSize - borderWidth * 2, cellSize - borderWidth * 2)
             )
         }
     }
 
     /**
-     * Vertical scrollbar component
+     * Data class to hold viewport bounds in grid coordinates
      */
-    @Composable
-    private fun BoxScope.VerticalScrollbar(
-        verticalScrollState: androidx.compose.foundation.ScrollState
-    ) {
-        androidx.compose.foundation.VerticalScrollbar(
-            modifier = Modifier
-                .align(Alignment.CenterEnd)
-                .fillMaxHeight(),
-            adapter = rememberScrollbarAdapter(verticalScrollState)
-        )
-    }
-
-    /**
-     * Horizontal scrollbar component
-     */
-    @Composable
-    private fun BoxScope.HorizontalScrollbar(
-        horizontalScrollState: androidx.compose.foundation.ScrollState
-    ) {
-        androidx.compose.foundation.HorizontalScrollbar(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .fillMaxWidth()
-                .padding(end = 12.dp),
-            adapter = rememberScrollbarAdapter(horizontalScrollState)
-        )
-    }
-
-    /**
-     * Data class to hold grid dimensions
-     */
-    private data class GridDimensions(
-        val width: Int,
-        val height: Int
+    private data class ViewportBounds(
+        val minX: Int,
+        val minY: Int,
+        val maxX: Int,
+        val maxY: Int
     )
 
     /**
-     * Creates a random grid with given dimensions
-     * Each cell has 50% chance of being alive
+     * Updates the infinite grid using Game of Life rules
+     * Only processes cells in viewport + buffer zone
+     * New cells are randomly initialized on first access
      */
-    private fun createRandomGrid(width: Int, height: Int): List<List<Boolean>> =
-        List(height) { List(width) { Math.random() < 0.5 } }
+    private suspend fun updateInfiniteGrid(
+        currentCache: Map<Pair<Int, Int>, Boolean>,
+        offsetX: Float,
+        offsetY: Float,
+        zoomLevel: Float
+    ): Map<Pair<Int, Int>, Boolean> {
+        // Calculate viewport bounds with buffer
+        val cellSize = baseCellSizePx * zoomLevel
+        val viewportWidth = 1920f // Approximate screen width, adjust as needed
+        val viewportHeight = 1080f // Approximate screen height, adjust as needed
 
-    /**
-     * Updates the grid using Game of Life rules via backend computation
-     * Leverages LMatrix and BMatrix for efficient coroutine-based updates
-     */
-    private fun updateGrid(grid: List<List<Boolean>>): List<List<Boolean>> {
-        val width = grid.maxOf { it.size }
-        val height = grid.size
-        return LMatrix(width, height).update(BMatrix(grid)).mainMatrix
+        val minX = floor(-offsetX / cellSize).toInt() - bufferZone
+        val minY = floor(-offsetY / cellSize).toInt() - bufferZone
+        val maxX = floor((viewportWidth - offsetX) / cellSize).toInt() + bufferZone
+        val maxY = floor((viewportHeight - offsetY) / cellSize).toInt() + bufferZone
+
+        // Initialize new cells with random values
+        val mutableCache = currentCache.toMutableMap()
+        val newEntries = (minY..maxY).asSequence()
+            .flatMap { y -> (minX..maxX).asSequence().map { x -> Pair(x, y) } }
+            .filter { it !in mutableCache }
+            .associateWith { Math.random() < 0.5 }
+
+        mutableCache.putAll(newEntries)
+
+        // Convert to 2D array for LMatrix processing
+        val width = maxX - minX + 1
+        val height = maxY - minY + 1
+
+        val readMatrix = BMatrix(width, height)
+        readMatrix.updateEach { x, y, tmpVal -> mutableCache[Pair(minX + x, minY + y)] ?: false }
+
+        // Apply Game of Life rules using backend
+        val updatedBMatrix = LMatrix(width, height).update(readMatrix)
+
+        // Update cache with new values
+        updatedBMatrix.getEach { x, y, tmpVal ->
+            mutableCache[Pair(minX + x, minY + y)] = tmpVal
+        }
+
+        return mutableCache
     }
 }

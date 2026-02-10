@@ -1,15 +1,15 @@
 package org.msc
 
+import kotlinx.coroutines.runBlocking
 import org.assertj.core.api.Assertions.assertThat
 import org.msc.model.BMatrix
 import org.msc.model.LMatrix
-import org.msc.view.ConsoleViewer
 import kotlin.test.Test
 
 class GolRuleTest {
 
     @Test
-    fun checkRuleOne() {
+    fun checkRuleOne(): Unit = runBlocking {
 
         val dim = 3
         val bMatrix = BMatrix(dim, dim)
@@ -30,7 +30,7 @@ class GolRuleTest {
     }
 
     @Test
-    fun checkRuleTwoWithTwo() {
+    fun checkRuleTwoWithTwo(): Unit = runBlocking {
 
         val dim = 3
         val bMatrix = BMatrix(dim, dim)
@@ -52,7 +52,7 @@ class GolRuleTest {
     }
 
     @Test
-    fun checkRuleTwoWithThree() {
+    fun checkRuleTwoWithThree(): Unit = runBlocking {
 
         val dim = 3
         val bMatrix = BMatrix(dim, dim)
@@ -75,7 +75,7 @@ class GolRuleTest {
     }
 
     @Test
-    fun checkRuleThreeWithNoNeighbors() {
+    fun checkRuleThreeWithNoNeighbors(): Unit = runBlocking {
 
         val dim = 3
         val bMatrix = BMatrix(dim, dim)
@@ -93,9 +93,7 @@ class GolRuleTest {
     }
 
     @Test
-    fun checkRuleThreeWithTooMuchNeighbors() {
-
-        val consoleViewer = ConsoleViewer()
+    fun checkRuleThreeWithTooMuchNeighbors(): Unit = runBlocking {
 
         val dim = 3
         val bMatrix = BMatrix(dim, dim)
@@ -110,12 +108,8 @@ class GolRuleTest {
 
         assertThat(bMatrix.get(1, 1)).isTrue()
 
-        consoleViewer.printMatrix(bMatrix)
-
         val lMatrix = LMatrix( dim,dim)
         val newBMatrix = lMatrix.update(bMatrix)
-
-        consoleViewer.printMatrix(newBMatrix)
 
         assertThat(newBMatrix.get(1, 1)).isFalse()
         assertThat(newBMatrix.getAllElements().count { it == true }).isEqualTo(4)

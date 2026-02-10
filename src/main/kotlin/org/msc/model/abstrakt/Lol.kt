@@ -52,18 +52,6 @@ abstract class Lol<T>(val maxX: Int, val maxY: Int) {
         }
     }
 
-    suspend fun updateEachAsync(setFunction: (x: Int, y: Int, tmpVal: T) -> T) {
-        coroutineScope {
-            mainMatrix.indices.map { y ->
-                launch {
-                    for (x in mainMatrix[y].indices) {
-                        mainMatrix[y][x] = setFunction(x, y, mainMatrix[y][x])
-                    }
-                }
-            }.joinAll()
-        }
-    }
-
     fun getEach(getFunction:(x:Int,y:Int, tmpVal:T)->Unit){
         for(y in 0 until mainMatrix.size){
             for (x in 0 until mainMatrix[y].size) {
