@@ -45,6 +45,6 @@ class LElement(val x: Int, val y: Int) {
     }
 
     private fun getNeighbors(readMatrix: BMatrix): List<Boolean> {
-        return neighborCoordinates.mapNotNull { readMatrix.get(x + it.first, y + it.second) }.toList()
+        return neighborCoordinates.mapNotNull { readMatrix.get(x + it.first, y + it.second) }
     }
 }

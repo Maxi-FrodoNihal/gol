@@ -24,4 +24,3 @@ class BMatrix : Lol<Boolean> {
         }
     }
 }
-

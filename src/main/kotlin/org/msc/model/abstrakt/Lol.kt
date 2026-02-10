@@ -1,9 +1,5 @@
 package org.msc.model.abstrakt
 
-import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.joinAll
-import kotlinx.coroutines.launch
-
 abstract class Lol<T>(val maxX: Int, val maxY: Int) {
 
     val mainMatrix: MutableList<MutableList<T>> = mutableListOf()

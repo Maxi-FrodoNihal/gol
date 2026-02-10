@@ -174,18 +174,38 @@ src/
 - Use coroutines for concurrent operations
 
 ### Performance Best Practices
-1. **Avoid Nested For-Loops**: Use functional sequences instead
-   ```kotlin
-   // ❌ Nested loops
-   for (y in minY..maxY) {
-       for (x in minX..maxX) { ... }
-   }
+1. **Nested For-Loops - Pragmatic Approach**:
 
-   // ✅ Functional sequences
-   (minY..maxY).asSequence()
+   **Use functional style when:**
+   - The logic is complex and involves transformations
+   - Working with collections where `map`/`filter`/`flatMap` improves clarity
+   - The loops are part of business logic (e.g., cell initialization in ComposeView)
+
+   ```kotlin
+   // ✅ Good use of functional style (complex logic)
+   val newEntries = (minY..maxY).asSequence()
        .flatMap { y -> (minX..maxX).asSequence().map { x -> Pair(x, y) } }
-       .filter { ... }
+       .filter { it !in mutableCache }
+       .associateWith { Math.random() < 0.5 }
    ```
+
+   **Keep for-loops when:**
+   - The function consists mostly of simple iteration
+   - The loop body is straightforward and clear
+   - Functional style would reduce readability
+
+   ```kotlin
+   // ✅ Simple iteration - for-loops are fine
+   fun setEach(setFunction:(x:Int,y:Int)->T){
+       for(y in 0 until mainMatrix.size){
+           for (x in 0 until mainMatrix[y].size) {
+               mainMatrix[y][x] = setFunction(x,y)
+           }
+       }
+   }
+   ```
+
+   **Rule of thumb:** If the function is primarily a simple iteration with a clear, single expression in the body, for-loops are perfectly acceptable and often more readable.
 
 2. **Chunk-Based Parallel Processing**: For batch operations on collections
    ```kotlin
@@ -245,10 +265,11 @@ src/
    - `getAllElements()` + `chunked()` + `launch` for parallel processing
    - Better load-balancing than row-based parallelism
    - Chunk size = `totalElements / CPU cores` (minimum 100)
-4. **Functional Over Imperative**:
-   - Prefer `flatMap`, `filter`, `map` over nested for-loops
-   - Use `asSequence()` for lazy evaluation
-   - Example: Cell initialization uses sequences instead of loops
+4. **Functional vs Imperative - Be Pragmatic**:
+   - Use `flatMap`, `filter`, `map` for complex transformations
+   - Use `asSequence()` for lazy evaluation on large collections
+   - Keep simple for-loops when they're clearer (e.g., `setEach`, `updateEach` in Lol.kt)
+   - Example: Cell initialization in ComposeView uses sequences (complex logic), while Lol.kt helper methods use for-loops (simple iteration)
 5. **Suspend Function Hierarchy**:
    - `LMatrix.update()` is suspend (coordinates coroutines)
    - `LElement.update()` is NOT suspend (pure computation)
