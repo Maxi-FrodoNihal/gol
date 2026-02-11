@@ -292,6 +292,12 @@ class ComposeView {
             mutableCache[Pair(minX + x, minY + y)] = tmpVal
         }
 
+        // Clean up cells outside the buffer zone to prevent memory leak
+        val keysToRemove = mutableCache.keys.filter { (x, y) ->
+            x < minX || x > maxX || y < minY || y > maxY
+        }
+        keysToRemove.forEach { mutableCache.remove(it) }
+
         return mutableCache
     }
 }
