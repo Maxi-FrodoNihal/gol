@@ -35,5 +35,47 @@ compose.desktop {
         jvmArgs += listOf(
             "--enable-native-access=ALL-UNNAMED"
         )
+
+        nativeDistributions {
+            targetFormats(
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
+            )
+            packageName = "GameOfLife"
+            packageVersion = "1.0.0"
+            description = "Conway's Game of Life"
+            vendor = "MSC"
+
+            windows {
+                menuGroup = "Games"
+                upgradeUuid = "BF9CDA6A-1391-46D5-9ED5-383D6E68CCEB"
+            }
+        }
     }
+}
+
+// Create a fat JAR task manually
+tasks.register<Jar>("fatJar") {
+    group = "build"
+    description = "Creates a fat JAR with all dependencies"
+
+    archiveBaseName.set("game-of-life")
+    archiveVersion.set("1.0")
+
+    manifest {
+        attributes(
+            "Main-Class" to "org.msc.MainKt"
+        )
+    }
+
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+
+    from(configurations.runtimeClasspath.get().map { if (it.isDirectory) it else zipTree(it) })
+    from(sourceSets.main.get().output)
+
+    exclude("META-INF/*.SF", "META-INF/*.DSA", "META-INF/*.RSA")
+}
+
+tasks.build {
+    dependsOn("fatJar")
 }

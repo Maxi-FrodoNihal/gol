@@ -54,25 +54,35 @@ class ComposeView {
         var offsetX by remember { mutableStateOf(0f) }
         var offsetY by remember { mutableStateOf(0f) }
         var zoomLevel by remember { mutableStateOf(1f) }
+        var viewportWidth by remember { mutableStateOf(1920f) }
+        var viewportHeight by remember { mutableStateOf(1080f) }
 
         GameUpdateLoop(
             onUpdate = {
-                cellCache = updateInfiniteGrid(cellCache, offsetX, offsetY, zoomLevel)
+                cellCache = updateInfiniteGrid(cellCache, offsetX, offsetY, zoomLevel, viewportWidth, viewportHeight)
             }
         )
 
         MaterialTheme(colors = darkColorScheme) {
-            InfiniteGameCanvas(
-                cellCache = cellCache,
-                offsetX = offsetX,
-                offsetY = offsetY,
-                zoomLevel = zoomLevel,
-                onOffsetChange = { dx, dy ->
-                    offsetX += dx
-                    offsetY += dy
-                },
-                onZoomChange = { newZoom -> zoomLevel = newZoom }
-            )
+            BoxWithConstraints(Modifier.fillMaxSize()) {
+                // Update viewport dimensions when constraints change
+                LaunchedEffect(constraints.maxWidth, constraints.maxHeight) {
+                    viewportWidth = constraints.maxWidth.toFloat()
+                    viewportHeight = constraints.maxHeight.toFloat()
+                }
+
+                InfiniteGameCanvas(
+                    cellCache = cellCache,
+                    offsetX = offsetX,
+                    offsetY = offsetY,
+                    zoomLevel = zoomLevel,
+                    onOffsetChange = { dx, dy ->
+                        offsetX += dx
+                        offsetY += dy
+                    },
+                    onZoomChange = { newZoom -> zoomLevel = newZoom }
+                )
+            }
         }
     }
 
@@ -246,12 +256,12 @@ class ComposeView {
         currentCache: Map<Pair<Int, Int>, Boolean>,
         offsetX: Float,
         offsetY: Float,
-        zoomLevel: Float
+        zoomLevel: Float,
+        viewportWidth: Float,
+        viewportHeight: Float
     ): Map<Pair<Int, Int>, Boolean> {
         // Calculate viewport bounds with buffer
         val cellSize = baseCellSizePx * zoomLevel
-        val viewportWidth = 1920f // Approximate screen width, adjust as needed
-        val viewportHeight = 1080f // Approximate screen height, adjust as needed
 
         val minX = floor(-offsetX / cellSize).toInt() - bufferZone
         val minY = floor(-offsetY / cellSize).toInt() - bufferZone
