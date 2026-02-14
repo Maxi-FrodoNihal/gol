@@ -37,18 +37,28 @@ compose.desktop {
         )
 
         nativeDistributions {
+            // Beide OS-Targets
             targetFormats(
                 org.jetbrains.compose.desktop.application.dsl.TargetFormat.Exe,
-                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Msi,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.Deb,
+                org.jetbrains.compose.desktop.application.dsl.TargetFormat.AppImage
             )
+
             packageName = "GameOfLife"
             packageVersion = "1.0.0"
             description = "Conway's Game of Life"
             vendor = "MSC"
 
+            // Windows-spezifische Einstellungen
             windows {
                 menuGroup = "Games"
                 upgradeUuid = "BF9CDA6A-1391-46D5-9ED5-383D6E68CCEB"
+            }
+
+            // Linux-spezifische Einstellungen
+            linux {
+                menuGroup = "Games"
             }
         }
     }
